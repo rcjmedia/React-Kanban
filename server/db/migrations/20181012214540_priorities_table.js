@@ -1,6 +1,6 @@
 exports.up = function(knex, Promise) {
-    return knex.schema.createTable('priorities_table', function(table) {
-      table.increments('priorities_id').unique().notNullable();
+    return knex.schema.createTable('priorities', function(table) {
+      table.increments().unique().notNullable();
       table.string('name').notNullable();
       table.integer('rank').notNullable();
       table.timestamp('created_at').defaultTo(knex.fn.now()).notNullable();
@@ -9,5 +9,5 @@ exports.up = function(knex, Promise) {
   }
   
   exports.down = function(knex, Promise) {
-    return knex.schema.dropTable('priorities_table');
+    return knex.schema.dropTable('priorities');
   }

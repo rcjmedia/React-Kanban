@@ -3,3 +3,5 @@ services:
   this-app:
     build: .
     image: rcjmedia/react-kanban:local
+    volumes:
+      - /app/node_modules/

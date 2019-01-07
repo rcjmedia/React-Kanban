@@ -2,67 +2,21 @@ const express = require('express');
 const app = express();
 const PORT = process.env.EXPRESS_CONTAINER_PORT || 5050;
 const bp = require('body-parser');
-const session = require('express-session');
-const RedisStore = require('connect-redis')(session);
-
 const UserModel = require('./models/UserModel.js');
 const PriorityModel = require('./models/PriorityModel.js');
 const StatusModel = require('./models/StatusModel.js');
 const CardModel = require('./models/CardModel.js');
 
-app.use(session({
-  store: new RedisStore({url: 'redis://redis-session-store:6379', logErrors: true}),
-  secret: 'lollerkates', // SECRET IS USED IN THE ALGORITHMS TO CREATE KEYS
-  resave: false, // IF THERE IS NO CHANGE, SAVE IT BUT SET TO FALSE TO PREVENT CREATING SESSIONS
-  saveUninitialized: true // 
-}));
-
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
 
-/* GET Pages */
-app.get('/usernames', (req,res)=> {
-  UserModel
-    .fetchAll()
-    .then(items => {
-      res.json(items.serialize());
-    })
-    .catch(err => {
-      console.log(err, "ERR");
-      res.json("ERROR");
-    })
+app.get('/', (req, res) => {
+  console.log('Sanity Check')
+  res.send('Sanity Check')
 })
 
-app.get('/prioritynames', (req, res) => {
-
-  PriorityModel
-    .fetchAll()
-    .then(items => {
-      res.json(items.serialize())
-      console.log('items: ', items)
-    })
-    .catch(err => {
-      console.log('err: ', err)
-    })
-
-})
-
-app.get('/statusnames', (req, res) => {
-
-  StatusModel
-    .fetchAll()
-    .then(items => {
-      res.json(items.serialize())
-      console.log('items: ', items)
-    })
-    .catch(err => {
-      console.log('err: ', err)
-    })
-
-})
-
-app.get('/carditems', (req, res) => {
-
+/* 1. Show the kanban board */
+app.get('/cards', (req, res) => {
   CardModel
     .fetchAll({withRelated: ["priority_id", "status_id", "created_by", "assigned_to"]})
     .then(carditems => {
@@ -71,102 +25,191 @@ app.get('/carditems', (req, res) => {
     })
     .catch(err => {
       console.log('err: ', err)
-    })
+      res.json('err')
+    });
+});
 
-})
-
-/* End GET Pages */
-
-/* POST Pages*/
-// Add New Task //
-app.post('/newtask', (req, res) => {
-console.log("\nreq.body:", req.body);
-// For cards_table
-CardModel
-  .forge({
-    // card_id: Math.floor((Math.random() * 1256) + 1),
-    title: req.body.title,
-    body: req.body.body,
-    priority_id: req.body.priority_id,
-    status_id: req.body.status_id,
-    created_by: req.body.created_by,
-    assigned_to: req.body.assigned_to
-  })
-  .save()
-  .then(() => {
-    return CardModel
-      .fetchAll({withRelated: ["priority_id", "status_id", "created_by", "assigned_to"]})
-      .then(carditems => {
-        res.json(carditems.serialize());
-      })
-  })
-  .catch(err => {
-    console.log('POST NEW TASK BACKEND ERROR', err);
-    res.json("RES.JSON ERROR");
-  });
-})
-
-/* End POST Pages*/
-
-
-/* PUT Pages */
-
-//PUT ---- Tested and Confirmed that this works in Postman
-app.put("/edit", (req, res) => {
-  console.log("\nServer - PUT/Edit /edit");
-  // console.log("\nBackend - PUT req.params:", req.params);
-  console.log("\n\nServer - PUT/Edit req.body:", req.body);
-
-  // const { id } = req.params;
-  // console.log("\n Check id:", id);
-
-  CardModel
-    .where('card_id', req.body.card_id)
-    .fetch({withRelated: ["priority_id", "status_id", "created_by", "assigned_to"]})
-    .then(results => {
-      console.log("\nServer - PUT/Edit results:", results);
-      results.save({
-        title: req.body.title,
-        body: req.body.body,
-        priority_id: req.body.priority_id,
-        status_id: req.body.status_id,
-        created_by: req.body.created_by,
-        assigned_to: req.body.assigned_to
-      });
-      return CardModel.fetchAll({withRelated: ["priority_id", "status_id", "created_by", "assigned_to"]})
-    })
-    .then(tasks => {
-      res.json(tasks.serialize());
+/* 2. Show a listing of users of the board */
+app.get('/admin/users', (req,res)=> {
+  UserModel
+    .fetchAll()
+    .then(items => {
+      res.json(items.serialize());
     })
     .catch(err => {
-      console.log("\nServer - PUT/Edit ERROR");
-      res.json("FAILED");
+      console.log(err, "ERR");
+      res.json("err");
     })
-
 })
 
-//DELETE
-// app.put("/delete", (req, res) => {
-//   console.log("\n---> Backend DELETE /deleteTask");
-//   console.log("\nBackend - DELETE req.body:", req.body);
-//   CardModel
-//     .where("id", req.body.card_id)
-//     .destroy()
-//     .then(() => {
-//       console.log("\nDelete is working!!");
-//       return CardModel.fetchAll({withRelated: ["priority_id", "status_id", "created_by", "assigned_to"]})
-//     })
-//     .then(carditems => {
-//       res.json(carditems.serialize());
-//     })
-//     .catch(err => {
-//       console.log('error, err');
-//     })
-// })
+/* 3. Show a form to add a new user */
+app.post('/admin/users/new', (req, res) => {
+  const newUserInput = {
+    first_name: req.body.first_name,
+    last_name: req.body.last_name,
+    email: req.body.email  
+  };
+  return new UserModel()
+    .save(newUserInput)
+    .then(response => {
+      return response.refresh();
+    })
+    .then(newUserData => {
+      return res.json(newUserData);
+    })
+    .catch(err => {
+      console.log(err.message);
+      return res.status(400).json({ error: err.message });
+    });
+});
 
+/* 4. Detail view of user (Stretch goal) */
+app.get('/admin/users/:id', (req, res) => {
+  const { id } = req.params;
+  UserModel.where('id', id)
+    .fetch()
+    .then(byUserId => {
+      console.log('\nbyUserId: \n');
+      res.json(byUserId);
+    })
+    .catch(err => {
+      console.log('err', err);
+      res.json('err');
+    });
+});
+
+/* 5. Show form to let user update information (Stretch goal) */
+app.put('/admin/users/:id/edit', (req, res) => {
+  const { id } = req.params;
+  const updatedUser = {
+    first_name: req.body.first_name,
+    last_name: req.body.last_name,
+    email: req.body.email 
+  };
+  UserModel.where('id', id)
+    .fetch()
+    .then(userUpdateInput => {
+      console.log('userUpdateInput', userUpdateInput);
+      userUpdateInput.save(updatedUser);
+      res.json(updatedUser);
+      return null;
+    })
+    .catch(err => {
+      console.log('err', err);
+      res.json('err', err);
+    });
+});
+
+/* 6. Show list of current priorities */
+app.get('/admin/priorities/', (req,res)=> {
+  PriorityModel
+    .fetch()
+    .then(items => {
+      res.json(items.serialize());
+    })
+    .catch(err => {
+      console.log('err', err);
+      res.json('err', err);
+    })
+})
+
+/* 7. Show form to add new Priority */
+app.post('/admin/priorities/new', (req, res) => {
+  const newPriorityInput = {
+    name: req.body.name,
+    rank: req.body.rank  
+  };
+  return new PriorityModel()
+    .save(newPriorityInput)
+    .then(response => {
+      return response.refresh();
+    })
+    .then(newPriorityData => {
+      return res.json(newPriorityData);
+    })
+    .catch(err => {
+      console.log(err.message);
+      return res.status(400).json({ error: err.message });
+    });
+});
+
+/* 8. Show form to update selected Priority */
+app.put('/admin/priorities/:id/edit', (req, res) => {
+  const { id } = req.params;
+  const updatedPriority = {
+    name: req.body.name,
+    rank: req.body.rank  
+  };
+  PriorityModel.where('id', id)
+    .fetch()
+    .then(priorityUpdateInput => {
+      console.log('priorityUpdateInput', priorityUpdateInput);
+      priorityUpdateInput.save(updatedPriority);
+      res.json(updatedPriority);
+      return null;
+    })
+    .catch(err => {
+      console.log('err', err);
+      res.json('err', err);
+    });
+});
+
+/* 9. Show list of current statuses */
+app.get('/admin/statuses/', (req,res)=> {
+  StatusModel
+    .fetch()
+    .then(items => {
+      res.json(items.serialize());
+    })
+    .catch(err => {
+      console.log('err', err);
+      res.json('err', err);
+    })
+})
+
+/* 10. Show form to add new Status */
+app.post('/admin/statuses/new', (req, res) => {
+  const newStatusInput = {
+    name: req.body.name,
+    rank: req.body.rank  
+  };
+  return new StatusModel()
+    .save(newStatusInput)
+    .then(response => {
+      return response.refresh();
+    })
+    .then(newStatusData => {
+      return res.json(newStatusData);
+    })
+    .catch(err => {
+      console.log(err.message);
+      return res.status(400).json({ error: err.message });
+    });
+});
+
+/* 11. Show form to update selected Status */
+app.put('/admin/statuses/:id/edit', (req, res) => {
+  const { id } = req.params;
+  const updatedStatus = {
+    name: req.body.name,
+    rank: req.body.rank  
+  };
+  StatusModel.where('id', id)
+    .fetch()
+    .then(statusUpdateInput => {
+      console.log('statusUpdateInput', statusUpdateInput);
+      statusUpdateInput.save(updatedStatus);
+      res.json(updatedStatus);
+      return null;
+    })
+    .catch(err => {
+      console.log('err', err);
+      res.json('err', err);
+    });
+});
 
 // DELETE  ---- Tested and Confirmed that this works in Postman
-app.put('/delete', (req, res) => {
+app.delete('/delete', (req, res) => {
 
   const card_id = req.body.card_id
 
@@ -181,7 +224,6 @@ app.put('/delete', (req, res) => {
     })
 
 })
-/* End PUT Pages*/
 
 app.listen(PORT, () => {
   console.log(`Listening on ${PORT}...`)

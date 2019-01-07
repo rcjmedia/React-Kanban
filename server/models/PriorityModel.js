@@ -1,8 +1,8 @@
 const bookshelf = require('./bookshelf');
 
 const PriorityModel = bookshelf.Model.extend({
-    tableName: 'priorities_table',
-    idAttribute: 'priorities_id',   
+    tableName: 'priorities',
+    idAttribute: 'id',   
     hasTimestamps: true    
 });
 

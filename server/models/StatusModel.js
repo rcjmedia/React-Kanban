@@ -1,8 +1,8 @@
 const bookshelf = require('./bookshelf');
 
 const StatusModel = bookshelf.Model.extend({
-    tableName: 'statuses_table',
-    idAttribute: 'statuses_id',   
+    tableName: 'statuses',
+    idAttribute: 'id',   
     hasTimestamps: true    
 });
 
